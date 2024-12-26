@@ -1,0 +1,31 @@
+servers:
+  - name: Server1
+    host: 192.168.1.10
+    user: admin
+    password: password123
+    pathsToBackup:
+      - /var/www/html/
+      - /var/www/data/
+  - name: Server2
+    host: 192.168.1.11
+    user: backup_user
+    password: securepass
+    pathsToBackup:
+      - /home/user/documents/
+
+databases:
+  - name: MyDatabase
+    type: mysql
+    host: 192.168.1.10
+    user: dbuser
+    password: dbpassword
+
+remoteStorage:
+  host: backup.remote-server.com
+  user: remotebackup
+  password: remotepass
+  remotePath: /backups/
+
+retentionPolicy:
+  fullBackupsToKeep: 3
+  incrementalBackupsToKeep: 14
