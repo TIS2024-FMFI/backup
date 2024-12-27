@@ -75,4 +75,31 @@ public class NotificationManager {
                 backupType, targetName, status, location
         );
     }
+
+    /**
+     * Formats a detailed error notification message.
+     *
+     * @param errorDetails Details of the error.
+     * @param moduleName   Module where the error occurred.
+     * @return Formatted error message.
+     */
+    public String formatErrorMessage(String errorDetails, String moduleName) {
+        return String.format(
+                "An error occurred in module: %s%n" +
+                        "Details: %s%n",
+                moduleName, errorDetails
+        );
+    }
+
+    /**
+     * Sends a notification for an error in the system.
+     *
+     * @param moduleName   The name of the module where the error occurred.
+     * @param errorDetails Details about the error.
+     */
+    public void notifyError(String moduleName, String errorDetails) {
+        String subject = "System Error in " + moduleName;
+        String message = formatErrorMessage(errorDetails, moduleName);
+        sendEmail(subject, message);
+    }
 }

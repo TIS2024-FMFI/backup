@@ -26,7 +26,7 @@ email:
   smtpHost: "smtp.gmail.com"
   smtpPort: 587
   username: "mighty.rns@gmail.com"
-  password: "ugmy vymi hhgs kdpt" # Use an App Password, not your account password
+  password: "ugmy vymi" # Use an App Password, not your account password
   fromAddress: "mighty.rns@gmail.com"
   toAddresses:
     - "mighty.rns@gmail.com"

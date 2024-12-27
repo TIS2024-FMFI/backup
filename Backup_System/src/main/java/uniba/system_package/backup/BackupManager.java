@@ -51,20 +51,15 @@ public class BackupManager {
         String incrementalBackupCron = configurationManager.getSchedule().getIncrementalBackup();
 
         try {
-            long fullBackupDelay = scheduler.parseSchedule(fullBackupCron);
-            long incrementalBackupDelay = scheduler.parseSchedule(incrementalBackupCron);
-
             // Schedule full backups
-            scheduler.scheduleBackup("full", () -> startBackup("full"),
-                    fullBackupDelay - System.currentTimeMillis(),
-                    24 * 60 * 60 * 1000L); // Every 24 hours
+            scheduler.scheduleCronBackup("full",
+                    () -> startBackup("full"), fullBackupCron);
 
             // Schedule incremental backups
-            scheduler.scheduleBackup("incremental", () -> startBackup("incremental"),
-                    incrementalBackupDelay - System.currentTimeMillis(),
-                    6 * 60 * 60 * 1000L); // Every 6 hours
+            scheduler.scheduleCronBackup("incremental",
+                    () -> startBackup("incremental"), incrementalBackupCron);
 
-            scheduler.start();
+            logger.info("Scheduled full and incremental backups successfully.");
         } catch (Exception e) {
             logger.error("Error configuring scheduled backups: {}", e.getMessage(), e);
         }
@@ -87,8 +82,14 @@ public class BackupManager {
             // Handle remote storage integration
             BackupMetadata metadata = job.getMetadata();
             if ("success".equals(metadata.getStatus())) {
-                if (!storageManager.storeBackup(metadata.getLocation(), "/remote/backups/" + metadata.getTargetName() + "_" + backupType + ".tar.gz")) {
+                ConfigurationManager.Config.RemoteStorage remoteConfig = configurationManager.getRemoteStorage();
+                String remotePath = remoteConfig.getRemotePath() + "/" + metadata.getTargetName() + "_" + backupType + ".tar.gz";
+
+                if (!storageManager.uploadToSFTP(metadata.getLocation(), remotePath,
+                        remoteConfig.getHost(), remoteConfig.getUser(), remoteConfig.getPassword())) {
                     logger.error("Failed to store backup remotely for target: {}", metadata.getTargetName());
+                } else {
+                    logger.info("Backup for target {} successfully uploaded to remote location: {}", metadata.getTargetName(), remotePath);
                 }
             }
         }
@@ -96,6 +97,8 @@ public class BackupManager {
         applyRetentionPolicies();
         logger.info("{} backup process completed.", backupType);
     }
+
+
 
     /**
      * Adds servers and databases to the backup target list.
@@ -134,6 +137,7 @@ public class BackupManager {
         return backupTargets;
     }
 
+
     /**
      * Applies retention policies to manage old backups.
      */
@@ -141,7 +145,9 @@ public class BackupManager {
         logger.info("Applying retention policies...");
         try {
             List<String> allBackups = storageManager.listBackupFiles("/backups");
-            retentionPolicy.deleteOldBackups(allBackups, configurationManager.getRetentionPolicy().getFullBackupsToKeep());
+            int fullBackupsToKeep = configurationManager.getRetentionPolicy().getFullBackupsToKeep();
+
+            storageManager.deleteOldBackups(allBackups, fullBackupsToKeep);
             logger.info("Retention policies applied successfully.");
         } catch (Exception e) {
             logger.error("Error applying retention policies: {}", e.getMessage(), e);

@@ -2,77 +2,81 @@ package uniba.system_package.scheduler;
 
 import uniba.system_package.utils.LogManager;
 import org.slf4j.Logger;
-
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.quartz.*;
+import org.quartz.impl.StdSchedulerFactory;
 
 public class Scheduler {
     private static final Logger logger = LogManager.getLogger(Scheduler.class);
 
-    private final Timer timer;
+    private final org.quartz.Scheduler scheduler;
     private final ExecutorService executorService;
 
     public Scheduler() {
-        this.timer = new Timer(true); // Daemon thread to ensure JVM can exit
+        try {
+            this.scheduler = StdSchedulerFactory.getDefaultScheduler();
+            this.scheduler.start();
+        } catch (SchedulerException e) {
+            throw new RuntimeException("Failed to initialize Quartz Scheduler", e);
+        }
         this.executorService = Executors.newCachedThreadPool();
     }
 
     /**
-     * Parses a schedule string and returns a simulated delay (in milliseconds).
-     * Replace with a real cron parser for production systems.
+     * Schedules a backup task using a cron expression.
      *
-     * @param cronExpression The cron-like expression to parse.
-     * @return Simulated delay in milliseconds.
+     * @param backupType  The type of backup (e.g., "full" or "incremental").
+     * @param backupTask  The backup task to execute.
+     * @param cronExpression The cron expression to schedule the task.
      */
-    public long parseSchedule(String cronExpression) {
-        logger.info("Parsing cron expression: {}", cronExpression);
+    public void scheduleCronBackup(String backupType, Runnable backupTask, String cronExpression) {
+        try {
+            JobDetail jobDetail = JobBuilder.newJob(BackupJobWrapper.class)
+                    .withIdentity(backupType + "-backup", "backup-jobs")
+                    .build();
 
-        // Simulated delay (e.g., 1-minute delay for simplicity)
-        return System.currentTimeMillis() + 60 * 1000; // 1-minute delay
-    }
+            jobDetail.getJobDataMap().put("task", backupTask);
 
-    /**
-     * Schedules a backup task to run periodically.
-     *
-     * @param backupType    The type of backup (e.g., "full" or "incremental").
-     * @param backupTask    The backup task to execute.
-     * @param delay         Initial delay before the task starts (in milliseconds).
-     * @param interval      Interval between subsequent executions (in milliseconds).
-     */
-    public void scheduleBackup(String backupType, Runnable backupTask, long delay, long interval) {
-        logger.info("Scheduling {} backup with an initial delay of {} ms and interval of {} ms.", backupType, delay, interval);
+            Trigger trigger = TriggerBuilder.newTrigger()
+                    .withIdentity(backupType + "-trigger", "backup-triggers")
+                    .withSchedule(CronScheduleBuilder.cronSchedule(cronExpression))
+                    .build();
 
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                executorService.submit(() -> {
-                    logger.info("Executing {} backup task...", backupType);
-                    try {
-                        backupTask.run();
-                    } catch (Exception e) {
-                        logger.error("Error executing {} backup task: {}", backupType, e.getMessage(), e);
-                    }
-                });
-            }
-        }, delay, interval);
-    }
+            scheduler.scheduleJob(jobDetail, trigger);
 
-    /**
-     * Starts the scheduler.
-     */
-    public void start() {
-        logger.info("Scheduler started.");
+            logger.info("{} backup scheduled with cron expression: {}", backupType, cronExpression);
+        } catch (SchedulerException e) {
+            logger.error("Failed to schedule {} backup: {}", backupType, e.getMessage(), e);
+        }
     }
 
     /**
      * Stops the scheduler and shuts down resources.
      */
     public void stop() {
-        logger.info("Stopping scheduler...");
-        timer.cancel();
-        executorService.shutdown();
-        logger.info("Scheduler stopped.");
+        try {
+            scheduler.shutdown();
+            executorService.shutdown();
+            logger.info("Scheduler stopped.");
+        } catch (SchedulerException e) {
+            logger.error("Failed to stop the scheduler: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * A Quartz job wrapper for executing tasks.
+     */
+    public static class BackupJobWrapper implements Job {
+        @Override
+        public void execute(JobExecutionContext context) {
+            Runnable task = (Runnable) context.getJobDetail().getJobDataMap().get("task");
+            try {
+                task.run();
+            } catch (Exception e) {
+                Logger logger = LogManager.getLogger(BackupJobWrapper.class);
+                logger.error("Error executing backup task: {}", e.getMessage(), e);
+            }
+        }
     }
 }

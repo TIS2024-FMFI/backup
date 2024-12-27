@@ -38,7 +38,7 @@ public class Main {
     public static void main(String[] args) {
         // Load the configuration
         ConfigurationManager configurationManager = new ConfigurationManager();
-        configurationManager.loadConfig("config.yaml");
+     //   configurationManager.("config.yaml");
 
         // Initialize BackupManager
         BackupManager backupManager = new BackupManager(configurationManager);

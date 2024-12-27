@@ -1,31 +1,56 @@
 package uniba.system_package.utils;
 
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.Constructor;
-import org.yaml.snakeyaml.LoaderOptions;
-
 import java.io.InputStream;
 import java.util.List;
+
 
 public class ConfigurationManager {
     private Config config;
 
     // Load the configuration file
-    public void loadConfig(String configFilePath) {
-        LoaderOptions options = new LoaderOptions();
-        options.setAllowDuplicateKeys(false); // Configure additional options if needed
-        Yaml yaml = new Yaml(new Constructor(Config.class, options));
-
+    private void loadConfiguration(String configFilePath) {
         try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(configFilePath)) {
-            if (inputStream == null) {
-                throw new RuntimeException("Configuration file not found: " + configFilePath);
-            }
-            config = yaml.load(inputStream);
-            System.out.println("Configuration successfully loaded.");
+            Yaml yaml = new Yaml();
+            this.config = yaml.loadAs(inputStream, Config.class);
         } catch (Exception e) {
-            throw new RuntimeException("Error loading configuration: " + e.getMessage());
+            throw new RuntimeException("Error loading configuration file: " + configFilePath, e);
         }
     }
+
+    public Config.Server getServer(String name) {
+        return config.getServers().stream()
+                .filter(server -> server.getName().equalsIgnoreCase(name))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Server not found: " + name));
+    }
+
+    public List<Config.Database> getAllDatabases() {
+        return config.getDatabases();
+    }
+
+    public void validateConfig() {
+        // Validate schedules
+        if (config.getSchedule().getFullBackup() == null || config.getSchedule().getIncrementalBackup() == null) {
+            throw new IllegalArgumentException("Schedules must include both full and incremental backups.");
+        }
+
+        // Validate retention policies
+        Config.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
+        if (retentionPolicy.getFullBackupsToKeep() <= 0) {
+            throw new IllegalArgumentException("Retention policy must specify a positive number of full backups to keep.");
+        }
+        if (retentionPolicy.getIncrementalBackupsToKeep() <= 0) {
+            throw new IllegalArgumentException("Retention policy must specify a positive number of incremental backups to keep.");
+        }
+
+        // Validate remote storage
+        Config.RemoteStorage remoteStorage = config.getRemoteStorage();
+        if (remoteStorage.getHost() == null || remoteStorage.getUser() == null || remoteStorage.getPassword() == null) {
+            throw new IllegalArgumentException("Remote storage configuration must include host, user, and password.");
+        }
+    }
+
 
     // Get the list of servers
     public List<Config.Server> getServers() {
@@ -107,6 +132,7 @@ public class ConfigurationManager {
             this.schedule = schedule;
         }
 
+
         public Email getEmail() {
             return email;
         }
@@ -137,7 +163,6 @@ public class ConfigurationManager {
             }
         }
 
-        // Other inner classes remain unchanged...
         public static class RemoteStorage {
             private String host;
             private String user;
