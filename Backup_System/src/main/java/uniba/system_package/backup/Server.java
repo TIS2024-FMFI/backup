@@ -2,8 +2,10 @@ package uniba.system_package.backup;
 
 import uniba.system_package.scripts.ScriptExecutor;
 import uniba.system_package.utils.LogManager;
+import uniba.system_package.storage.StorageManager;
 import org.slf4j.Logger;
 
+import java.io.File;
 import java.util.List;
 
 public class Server implements BackupTarget {
@@ -16,8 +18,8 @@ public class Server implements BackupTarget {
     private List<String> pathsToBackup;
     private String preBackupScript; // Path to pre-backup script
     private String postBackupScript; // Path to post-backup script
+    private StorageManager storageManager;
 
-    // Constructor
     public Server(String name, String host, String user, String password, List<String> pathsToBackup,
                   String preBackupScript, String postBackupScript) {
         this.name = name;
@@ -27,64 +29,54 @@ public class Server implements BackupTarget {
         this.pathsToBackup = pathsToBackup;
         this.preBackupScript = preBackupScript;
         this.postBackupScript = postBackupScript;
+        this.storageManager = new StorageManager();
     }
 
-    // Getters
     public String getName() {
         return name;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public String getUser() {
-        return user;
-    }
-
-    public String getPassword() {
-        return password;
     }
 
     public List<String> getPathsToBackup() {
         return pathsToBackup;
     }
-
-    // Perform the backup
     @Override
-    public void performBackup() {
+    public boolean performBackup() {
         logger.info("Starting backup for server: {}", name);
 
         ScriptExecutor scriptExecutor = new ScriptExecutor();
 
-        // Execute pre-backup script if specified
+        // Execute pre-backup script
         if (preBackupScript != null && !preBackupScript.isEmpty()) {
             logger.info("Executing pre-backup script for server: {}", name);
             if (!scriptExecutor.executeScript(preBackupScript)) {
                 logger.error("Pre-backup script failed for server: {}", name);
-                return; // Abort backup if pre-backup script fails
+                return false;
             }
         }
 
         try {
-            for (String path : pathsToBackup) {
-                logger.info("Backing up path: {}", path);
-                // Simulate backup logic
-                Thread.sleep(500); // Simulating time taken for backup
+            String backupArchivePath = "/backups/" + name + ".tar.gz";
+            if (storageManager.compressFiles(pathsToBackup, backupArchivePath)) {
+                logger.info("Backup successfully stored at: {}", backupArchivePath);
+            } else {
+                logger.error("Failed to create backup archive for server: {}", name);
+                return false;
             }
-            logger.info("Backup completed successfully for server: {}", name);
-        } catch (InterruptedException e) {
-            logger.error("Backup interrupted for server: {}", name, e);
         } catch (Exception e) {
             logger.error("Backup failed for server: {}", name, e);
+            return false;
         }
 
-        // Execute post-backup script if specified
+        // Execute post-backup script
         if (postBackupScript != null && !postBackupScript.isEmpty()) {
             logger.info("Executing post-backup script for server: {}", name);
             if (!scriptExecutor.executeScript(postBackupScript)) {
                 logger.error("Post-backup script failed for server: {}", name);
+                return false;
             }
         }
+
+        return true;
     }
+
 }

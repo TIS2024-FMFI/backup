@@ -1,8 +1,11 @@
 package uniba.system_package.backup;
 
 import uniba.system_package.scripts.ScriptExecutor;
+import uniba.system_package.storage.StorageManager;
 import uniba.system_package.utils.LogManager;
 import org.slf4j.Logger;
+
+import java.util.List;
 
 public class Database implements BackupTarget {
     private static final Logger logger = LogManager.getLogger(Database.class);
@@ -14,8 +17,8 @@ public class Database implements BackupTarget {
     private String password;
     private String preBackupScript; // Path to pre-backup script
     private String postBackupScript; // Path to post-backup script
+    private StorageManager storageManager;
 
-    // Constructor
     public Database(String name, String type, String host, String user, String password,
                     String preBackupScript, String postBackupScript) {
         this.name = name;
@@ -25,62 +28,58 @@ public class Database implements BackupTarget {
         this.password = password;
         this.preBackupScript = preBackupScript;
         this.postBackupScript = postBackupScript;
+        this.storageManager = new StorageManager();
     }
 
-    // Getters
-    @Override
     public String getName() {
         return name;
     }
 
-    public String getType() {
-        return type;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public String getUser() {
-        return user;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    // Implementing BackupTarget methods
     @Override
-    public void performBackup() {
+    public boolean performBackup() {
         logger.info("Starting database backup for: {}", name);
 
         ScriptExecutor scriptExecutor = new ScriptExecutor();
 
-        // Execute pre-backup script if specified
+        // Execute pre-backup script
         if (preBackupScript != null && !preBackupScript.isEmpty()) {
             logger.info("Executing pre-backup script for database: {}", name);
             if (!scriptExecutor.executeScript(preBackupScript)) {
                 logger.error("Pre-backup script failed for database: {}", name);
-                return; // Abort backup if pre-backup script fails
+                return false;
             }
         }
 
         try {
-            // Simulated database dump logic (replace with actual database dump logic)
-            Thread.sleep(1000); // Simulating time taken for dump
-            logger.info("Database backup completed successfully for: {}", name);
-        } catch (InterruptedException e) {
-            logger.error("Database backup interrupted for: {}", name, e);
+            String dumpFilePath = "/dumps/" + name + ".sql";
+            if (storageManager.createDatabaseDump(type, host, user, password, dumpFilePath)) {
+                logger.info("Database dump created successfully at: {}", dumpFilePath);
+            } else {
+                logger.error("Failed to create database dump for: {}", name);
+                return false;
+            }
+
+            String backupArchivePath = "/backups/" + name + ".tar.gz";
+            if (storageManager.compressFiles(List.of(dumpFilePath), backupArchivePath)) {
+                logger.info("Database backup successfully stored at: {}", backupArchivePath);
+            } else {
+                logger.error("Failed to compress database dump for: {}", name);
+                return false;
+            }
         } catch (Exception e) {
-            logger.error("Database backup failed for: {}", name, e);
+            logger.error("Backup failed for database: {}", name, e);
+            return false;
         }
 
-        // Execute post-backup script if specified
+        // Execute post-backup script
         if (postBackupScript != null && !postBackupScript.isEmpty()) {
             logger.info("Executing post-backup script for database: {}", name);
             if (!scriptExecutor.executeScript(postBackupScript)) {
                 logger.error("Post-backup script failed for database: {}", name);
+                return false;
             }
         }
+
+        return true;
     }
 }

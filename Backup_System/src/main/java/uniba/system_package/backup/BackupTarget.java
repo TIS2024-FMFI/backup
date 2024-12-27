@@ -6,8 +6,10 @@ package uniba.system_package.backup;
 public interface BackupTarget {
     /**
      * Perform the backup operation for the target.
+     *
+     * @return true if the backup is successful, false otherwise.
      */
-    void performBackup();
+    boolean performBackup();
 
     /**
      * Get the name of the backup target.

@@ -21,11 +21,14 @@ public class BackupJob {
         metadata.setStartTime(System.currentTimeMillis());
 
         try {
-            target.performBackup();
-            metadata.setStatus("success");
-
-            metadata.setLocation("/backups/" + target.getName() + "_" + backupType + ".tar.gz");
-            metadata.setBackupSize(1024 * 1024 * 10); // Simulate 10MB size
+            boolean success = target.performBackup();
+            if (success) {
+                metadata.setStatus("success");
+                metadata.setLocation("/backups/" + target.getName() + "_" + backupType + ".tar.gz");
+                metadata.setBackupSize(1024 * 1024 * 10); // Simulate 10MB size
+            } else {
+                metadata.setStatus("failure");
+            }
         } catch (Exception e) {
             metadata.setStatus("failure");
             logger.error("Backup failed for target: {}", target.getName(), e);

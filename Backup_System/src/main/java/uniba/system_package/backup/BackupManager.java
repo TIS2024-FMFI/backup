@@ -7,8 +7,12 @@ import uniba.system_package.utils.ConfigurationManager;
 import uniba.system_package.utils.LogManager;
 import uniba.system_package.notification.NotificationManager;
 import org.slf4j.Logger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class BackupManager {
     private static final Logger logger = LogManager.getLogger(BackupManager.class);
@@ -18,7 +22,6 @@ public class BackupManager {
     private final RetentionPolicy retentionPolicy;
     private final Scheduler scheduler;
     private final NotificationManager notificationManager;
-
 
     public BackupManager(ConfigurationManager configurationManager) {
         this.configurationManager = configurationManager;
@@ -37,6 +40,7 @@ public class BackupManager {
                 emailConfig.getToAddresses()
         );
     }
+
     /**
      * Configures and starts scheduled backups.
      */
@@ -79,12 +83,19 @@ public class BackupManager {
         for (BackupTarget target : backupTargets) {
             BackupJob job = new BackupJob(target, backupType);
             job.run(this); // Pass BackupManager instance to run method
+
+            // Handle remote storage integration
+            BackupMetadata metadata = job.getMetadata();
+            if ("success".equals(metadata.getStatus())) {
+                if (!storageManager.storeBackup(metadata.getLocation(), "/remote/backups/" + metadata.getTargetName() + "_" + backupType + ".tar.gz")) {
+                    logger.error("Failed to store backup remotely for target: {}", metadata.getTargetName());
+                }
+            }
         }
 
         applyRetentionPolicies();
         logger.info("{} backup process completed.", backupType);
     }
-
 
     /**
      * Adds servers and databases to the backup target list.
@@ -124,32 +135,17 @@ public class BackupManager {
     }
 
     /**
-     * Compresses files and stores the backup for a specific target.
-     *
-     * @param target     The backup target.
-     * @param backupType The type of backup ("full" or "incremental").
-     */
-    private void handleBackupStorage(BackupTarget target, String backupType) {
-        String backupLocation = "/backups/" + target.getName() + "_" + backupType + ".tar.gz";
-        List<String> pathsToBackup = target instanceof Server
-                ? ((Server) target).getPathsToBackup()
-                : List.of(); // Replace with actual paths for databases
-
-        if (!storageManager.compressFiles(pathsToBackup, backupLocation)) {
-            logger.error("Failed to compress files for target: {}", target.getName());
-            return;
-        }
-
-        String remotePath = "/remote/backups/" + target.getName() + "_" + backupType + ".tar.gz";
-        storageManager.storeBackup(backupLocation, remotePath);
-    }
-
-    /**
      * Applies retention policies to manage old backups.
      */
     private void applyRetentionPolicies() {
-        List<String> allBackups = List.of("/backups/Server1_backup.tar.gz", "/backups/Database1_backup.tar.gz");
-        retentionPolicy.deleteOldBackups(allBackups, configurationManager.getRetentionPolicy().getFullBackupsToKeep());
+        logger.info("Applying retention policies...");
+        try {
+            List<String> allBackups = storageManager.listBackupFiles("/backups");
+            retentionPolicy.deleteOldBackups(allBackups, configurationManager.getRetentionPolicy().getFullBackupsToKeep());
+            logger.info("Retention policies applied successfully.");
+        } catch (Exception e) {
+            logger.error("Error applying retention policies: {}", e.getMessage(), e);
+        }
     }
 
     /**
