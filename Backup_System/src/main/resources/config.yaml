@@ -31,7 +31,11 @@ email:
   toAddresses:
     - "mighty.rns@gmail.com"
 
-
+remoteStorage:
+  host: 192.168.1.100
+  user: backupuser
+  password: securepassword
+  remotePath: /path/on/remote
 
 retentionPolicy:
   fullBackupsToKeep: 2

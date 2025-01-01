@@ -1,5 +1,7 @@
 package uniba.system_package.backup;
 
+import org.quartz.CronExpression;
+import org.quartz.SchedulerException;
 import uniba.system_package.scheduler.Scheduler;
 import uniba.system_package.storage.RetentionPolicy;
 import uniba.system_package.storage.StorageManager;
@@ -39,6 +41,13 @@ public class BackupManager {
                 emailConfig.getFromAddress(),
                 emailConfig.getToAddresses()
         );
+
+        // Inject BackupManager into Quartz Scheduler context
+        try {
+            this.scheduler.getQuartzScheduler().getContext().put("backupManager", this);
+        } catch (SchedulerException e) {
+            logger.error("Failed to inject BackupManager into Quartz Scheduler context: {}", e.getMessage(), e);
+        }
     }
 
     /**
@@ -172,5 +181,137 @@ public class BackupManager {
         );
 
         notificationManager.sendEmail(subject, message);
+    }
+
+    /**
+     * Overloaded method to manually start a backup for ONE specific target (Server or Database).
+     * @param backupType  "full" or "incremental"
+     * @param targetName  The name of the server or database as defined in config
+     * @return true if the backup was performed, false if no matching target or invalid backupType
+     */
+    public boolean startBackupForTarget(String backupType, String targetName) {
+        // 1) Log the request
+        logger.info("Request received to start a manual '{}' backup for target '{}'.", backupType, targetName);
+
+        // 2) Validate the backup type if you're strictly allowing only "full" or "incremental"
+        if (!"full".equalsIgnoreCase(backupType) && !"incremental".equalsIgnoreCase(backupType)) {
+            logger.warn("Invalid backup type '{}' provided. Only 'full' or 'incremental' are allowed.", backupType);
+            return false;
+        }
+
+        // 3) Load all possible targets (Servers + Databases) from config
+        List<BackupTarget> backupTargets = addBackupTargets();
+        if (backupTargets.isEmpty()) {
+            logger.warn("No backup targets found in the configuration. Unable to proceed with backup.");
+            return false;
+        }
+
+        boolean foundTarget = false;
+
+        // 4) Search for the matching target by name
+        for (BackupTarget target : backupTargets) {
+            // Compare case-insensitive to match your config entries
+            if (target.getName().equalsIgnoreCase(targetName)) {
+                foundTarget = true;
+                logger.info("Found target '{}'. Starting '{}' backup...", target.getName(), backupType);
+
+                // 5) Create and run the BackupJob
+                BackupJob job = new BackupJob(target, backupType);
+                try {
+                    job.run(this);
+                } catch (Exception e) {
+                    logger.error("Error while running backup job for target '{}': {}", target.getName(), e.getMessage(), e);
+                    return false;
+                }
+
+                // 6) Once the job completes, apply retention policies to remove old backups if needed
+                applyRetentionPolicies();
+                logger.info("Retention policies applied after manual backup for '{}'.", target.getName());
+
+                // We only wanted to back up one target, so we can break out of the loop
+                break;
+            }
+        }
+
+        // 7) If we never found a target with the given name, log and return false
+        if (!foundTarget) {
+            logger.warn("No target named '{}' found. Backup not performed.", targetName);
+            return false;
+        }
+        logger.info("Manual '{}' backup for target '{}' completed successfully.", backupType, targetName);
+        return true;
+    }
+
+    /**
+     * Schedules a backup for a specific target with a given type and cron expression.
+     *
+     * @param targetName      The name of the backup target (Server or Database).
+     * @param backupType      The type of backup ("full" or "incremental").
+     * @param cronExpression  The cron expression defining the backup schedule.
+     * @return true if scheduling was successful, false otherwise.
+     */
+    public boolean scheduleBackupForTarget(String targetName, String backupType, String cronExpression) {
+        logger.info("Scheduling a '{}' backup for target '{}' with cron '{}'", backupType, targetName, cronExpression);
+
+        // 1. Validate backup type
+        if (!"full".equalsIgnoreCase(backupType) && !"incremental".equalsIgnoreCase(backupType)) {
+            logger.warn("Invalid backup type '{}'. Only 'full' or 'incremental' are allowed.", backupType);
+            return false;
+        }
+
+        // 2. Adjust cron expression to include seconds for Quartz
+        String quartzCronExpression;
+        String[] cronParts = cronExpression.trim().split("\\s+");
+        if (cronParts.length == 5) {
+            quartzCronExpression = "0 " + cronExpression;
+        } else if (cronParts.length == 6) {
+            quartzCronExpression = cronExpression;
+        } else {
+            logger.warn("Invalid cron expression '{}'. Expected 5 or 6 fields.", cronExpression);
+            return false;
+        }
+
+        // 3. If 6 fields, ensure day-of-month or day-of-week is '?'
+        if (quartzCronExpression.split("\\s+").length == 6) {
+            String[] parts = quartzCronExpression.split("\\s+");
+            // Check if both day-of-month and day-of-week are '*'
+            if ("*".equals(parts[3]) && "*".equals(parts[5])) {
+                // Replace day-of-month with '?'
+                parts[3] = "?";
+                quartzCronExpression = String.join(" ", parts);
+                logger.info("Adjusted cron expression to '{}'", quartzCronExpression);
+            }
+        }
+
+        // 4. Validate the adjusted cron expression
+        if (!CronExpression.isValidExpression(quartzCronExpression)) {
+            logger.warn("Invalid cron expression '{}'.", quartzCronExpression);
+            return false;
+        }
+
+        // 5. Find the target
+        List<BackupTarget> backupTargets = addBackupTargets();
+        BackupTarget matchedTarget = null;
+        for (BackupTarget target : backupTargets) {
+            if (target.getName().equalsIgnoreCase(targetName)) {
+                matchedTarget = target;
+                break;
+            }
+        }
+
+        if (matchedTarget == null) {
+            logger.warn("No target named '{}' found. Cannot schedule backup.", targetName);
+            return false;
+        }
+
+        // 6. Schedule the backup using Scheduler
+        try {
+            scheduler.scheduleCronBackupForTarget(matchedTarget, backupType, quartzCronExpression);
+            logger.info("Successfully scheduled '{}' backup for target '{}' with cron '{}'", backupType, targetName, quartzCronExpression);
+            return true;
+        } catch (Exception e) {
+            logger.error("Failed to schedule backup for target '{}': {}", targetName, e.getMessage(), e);
+            return false;
+        }
     }
 }

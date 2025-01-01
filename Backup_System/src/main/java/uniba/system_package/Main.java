@@ -1,51 +1,34 @@
 package uniba.system_package;
 
 import uniba.system_package.backup.BackupManager;
+import uniba.system_package.cli.CLI;
 import uniba.system_package.utils.ConfigurationManager;
 
-/*public class Main {
-    public static void main(String[] args) {
-        // Load the configuration
-        ConfigurationManager configManager = new ConfigurationManager();
-        configManager.loadConfig("config.yaml");
-
-        // Initialize BackupManager
-        BackupManager backupManager = new BackupManager(configManager);
-
-        // Manual Backup Test
-        System.out.println("Starting manual full backup...");
-        backupManager.startBackup("full");
-
-        // Scheduled Backup Test
-
-        System.out.println("Starting scheduled backups...");
-        backupManager.startScheduledBackups();
-
-        // Keep the application running for testing
-        try {
-            Thread.sleep(60 * 1000); // Run for 1 minute
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        // Stop the scheduler after testing
-        backupManager.stopScheduler();
-    }
-}*/
-import uniba.system_package.cli.CLI;
-
 public class Main {
-    public static void main(String[] args) {
-        // Load the configuration
-        ConfigurationManager configurationManager = new ConfigurationManager();
-     //   configurationManager.("config.yaml");
+        public static void main(String[] args) {
+            // 1. Load the configuration
+            String configFilePath = "config.yaml";
 
-        // Initialize BackupManager
-        BackupManager backupManager = new BackupManager(configurationManager);
+            // Create and initialize the ConfigurationManager
+            ConfigurationManager configurationManager = new ConfigurationManager();
+            // Load the configuration (ensure you have a method to do so)
+            configurationManager.loadConfiguration(configFilePath);
 
-        // Start the CLI
-        CLI cli = new CLI(backupManager, configurationManager);
-        cli.start();
-    }
+            // Validate the config to ensure required fields are present
+            try {
+                configurationManager.validateConfig();
+            } catch (IllegalArgumentException e) {
+                System.err.println("Configuration validation failed: " + e.getMessage());
+                System.exit(1);
+            }
+
+            // 2. Create the BackupManager using the loaded configuration
+            BackupManager backupManager = new BackupManager(configurationManager);
+
+            // 3. Create the CLI and start it
+            CLI cli = new CLI(backupManager, configurationManager);
+
+            // 4. Start the CLI
+            cli.start();
+        }
 }
-

@@ -9,7 +9,7 @@ public class ConfigurationManager {
     private Config config;
 
     // Load the configuration file
-    private void loadConfiguration(String configFilePath) {
+    public void loadConfiguration(String configFilePath) {
         try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(configFilePath)) {
             Yaml yaml = new Yaml();
             this.config = yaml.loadAs(inputStream, Config.class);
