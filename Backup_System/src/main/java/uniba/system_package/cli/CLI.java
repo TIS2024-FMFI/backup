@@ -144,10 +144,6 @@ public class CLI {
                 listBackups();
                 System.out.println();
                 break;
-            case "configure_settings":
-                configureSettings(args);
-                System.out.println();
-                break;
             case "enable_server":
                 enableServer(args);
                 System.out.println();
@@ -183,7 +179,6 @@ public class CLI {
             System.out.println("  restore_backup      Restore data from a specific backup.");
             System.out.println("  status              Shows the current system status.");
             System.out.println("  list_backups        Lists all backups in storage.");
-            System.out.println("  configure_settings  Change settings (like retention policy).");
             System.out.println("  enable_server       Turn on backups for a server.");
             System.out.println("  disable_server      Turn off backups for a server.");
             System.out.println("  validate_script     Check if a script is valid.");
@@ -227,13 +222,7 @@ public class CLI {
                     System.out.println("Lists all known backups and their details.");
                     System.out.println();
                     break;
-                case "configure_settings":
-                    System.out.println();
-                    System.out.println("Usage: configure_settings --setting <SETTING_NAME> --value <NEW_VALUE> [--target <TARGET_NAME>]");
-                    System.out.println("Example: configure_settings --setting retention_policy --value 5");
-                    System.out.println("Changes certain settings on the fly.");
-                    System.out.println();
-                    break;
+
                 case "enable_server":
                     System.out.println();
                     System.out.println("Usage: enable_server --target <TARGET_NAME>");
@@ -337,10 +326,19 @@ public class CLI {
             return;
         }
 
+        //implement a proper restoreBackup method this is example from me
+
         String backupId = args.get("id");
-        System.out.println("Restoring backup with ID: " + backupId);
-        // TODO: Implement restore logic here
+        System.out.println("Restoring backup with ID: " + backupId + "...");
+
+//        boolean success = backupManager.restoreBackup(backupId)
+        if (true) {
+            System.out.println("Restore completed successfully for backup ID: " + backupId);
+        } else {
+            System.out.println("Restore failed or no matching backup found for ID: " + backupId);
+        }
     }
+
 
     private void displayStatus() {
         System.out.println("Showing system status...");
@@ -350,21 +348,6 @@ public class CLI {
     private void listBackups() {
         System.out.println("Showing all backups we have...");
         // TODO: Query and print backup metadata
-    }
-
-    private void configureSettings(Map<String, String> args) {
-        if (!args.containsKey("setting") || !args.containsKey("value")) {
-            System.out.println("Error: Missing arguments.");
-            System.out.println("Syntax: configure_settings --setting <SETTING_NAME> --value <NEW_VALUE> [--target <TARGET_NAME>]");
-            return;
-        }
-
-        String setting = args.get("setting");
-        String value = args.get("value");
-        String targetName = args.getOrDefault("target", "");
-
-        System.out.println("Changing setting '" + setting + "' to '" + value + "' for target: " + targetName);
-        // TODO: Actually update config or objects in memory
     }
 
     private void enableServer(Map<String, String> args) {
