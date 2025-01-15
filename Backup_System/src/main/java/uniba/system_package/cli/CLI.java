@@ -4,9 +4,6 @@ import uniba.system_package.backup.BackupManager;
 import uniba.system_package.utils.ConfigurationManager;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.ArrayList;
-import java.util.List;
-
 import java.util.*;
 
 public class CLI {
@@ -14,7 +11,6 @@ public class CLI {
     private ConfigurationManager configurationManager;
     private boolean isRunning;
 
-    // This class holds the command and any arguments parsed from user input.
     private static class ParsedCommand {
         private String command;
         private Map<String, String> args;
@@ -39,7 +35,6 @@ public class CLI {
         this.isRunning = true;
     }
 
-    // Starts the CLI loop.
     public void start() {
         Scanner scanner = new Scanner(System.in);
         System.out.println();
@@ -49,7 +44,6 @@ public class CLI {
             System.out.print("cli> ");
             String input = scanner.nextLine();
 
-            // Parse user input, then handle it.
             ParsedCommand parsed = parseInput(input);
             handleCommand(parsed);
         }
@@ -57,14 +51,11 @@ public class CLI {
 
     private ParsedCommand parseInput(String input) {
         List<String> tokens = new ArrayList<>();
-        // Regular expression to match quoted strings or non-space sequences
         Matcher m = Pattern.compile("\"([^\"]*)\"|(\\S+)").matcher(input);
         while (m.find()) {
             if (m.group(1) != null) {
-                // Quoted string without the quotes
                 tokens.add(m.group(1));
             } else {
-                // Unquoted word
                 tokens.add(m.group(2));
             }
         }
@@ -74,7 +65,6 @@ public class CLI {
         }
 
         int index = 0;
-        // If the first token is "backup-system", skip it
         if (tokens.get(0).equalsIgnoreCase("backup-system")) {
             index++;
         }
@@ -104,25 +94,21 @@ public class CLI {
         return new ParsedCommand(command, argsMap);
     }
 
-    // Handles commands and calls the right methods.
     private void handleCommand(ParsedCommand parsedCommand) {
         String command = parsedCommand.getCommand();
         Map<String, String> args = parsedCommand.getArgs();
 
-        // If there's no command, ask the user to type 'help'.
         if (command.isEmpty()) {
             System.out.println("No command detected. Type 'help' for a list of commands.");
             return;
         }
 
-        // Special check for "help", since we also support "help --cmd <someCommand>" for details.
         if (command.equalsIgnoreCase("help")) {
             String subCommand = args.get("cmd");
             displayHelp(subCommand);
             return;
         }
 
-        // All other commands go here.
         switch (command) {
             case "schedule_backup":
                 scheduleBackup(args);
@@ -165,8 +151,6 @@ public class CLI {
         }
     }
 
-    // Shows help info. If 'subCommand' is empty, show everything.
-    // Otherwise, show detailed help for that subCommand.
     private void displayHelp(String subCommand) {
         if (subCommand == null || subCommand.isBlank()) {
             System.out.println();
@@ -222,7 +206,6 @@ public class CLI {
                     System.out.println("Lists all known backups and their details.");
                     System.out.println();
                     break;
-
                 case "enable_server":
                     System.out.println();
                     System.out.println("Usage: enable_server --target <TARGET_NAME>");
@@ -258,8 +241,8 @@ public class CLI {
             }
         }
     }
+
     private void scheduleBackup(Map<String, String> args) {
-        // Validate required arguments: --target, --type, --schedule
         if (!args.containsKey("target") || !args.containsKey("type") || !args.containsKey("schedule")) {
             System.out.println("Error: Missing arguments.");
             System.out.println("Syntax: schedule_backup --target <TARGET_NAME> --type <TYPE> --schedule \"<CRON_EXPRESSION>\"");
@@ -270,19 +253,15 @@ public class CLI {
         String backupType = args.get("type");
         String cronExpression = args.get("schedule");
 
-        // Basic validation for backupType
         if (!"full".equalsIgnoreCase(backupType) && !"incremental".equalsIgnoreCase(backupType)) {
             System.out.println("Error: Invalid backup type. Must be 'full' or 'incremental'.");
             return;
         }
 
-        // Log the command execution
         System.out.println("Scheduling a " + backupType + " backup for target '" + targetName + "' with cron '" + cronExpression + "'.");
 
-        // Call the BackupManager's scheduling method
         boolean success = backupManager.scheduleBackupForTarget(targetName, backupType, cronExpression);
 
-        // Notify the user
         if (success) {
             System.out.println("Backup scheduled successfully.");
         } else {
@@ -290,17 +269,13 @@ public class CLI {
         }
     }
 
-
-
     private void runBackup(Map<String, String> args) {
-        // 1) Validate required arguments
         if (!args.containsKey("target") || args.get("target") == null || args.get("target").isBlank()) {
             System.out.println("Error: Missing required argument --target <TARGET_NAME>.");
             return;
         }
 
-        // Optionally check for --type as well. If not provided, default to 'full' or ask the user.
-        String backupType = "full"; // default
+        String backupType = "full";
         if (args.containsKey("type") && !args.get("type").isBlank()) {
             backupType = args.get("type");
         }
@@ -308,10 +283,8 @@ public class CLI {
         String targetName = args.get("target");
         System.out.println("Running a manual backup for: " + targetName + " with type: " + backupType);
 
-        // 2) Call the new method in BackupManager
         boolean success = backupManager.startBackupForTarget(backupType, targetName);
 
-        // 3) Notify user of the result
         if (success) {
             System.out.println("Manual backup completed successfully for: " + targetName);
         } else {
@@ -319,35 +292,80 @@ public class CLI {
         }
     }
 
-
     private void restoreBackup(Map<String, String> args) {
+        // Step 1: Validate arguments
         if (!args.containsKey("id") || args.get("id").isBlank()) {
             System.out.println("Error: Missing required argument --id <BACKUP_ID>.");
             return;
         }
 
-        //implement a proper restoreBackup method this is example from me
-
         String backupId = args.get("id");
-        System.out.println("Restoring backup with ID: " + backupId + "...");
+        System.out.println("Restoring backup with ID: " + backupId);
 
-//        boolean success = backupManager.restoreBackup(backupId)
-        if (true) {
-            System.out.println("Restore completed successfully for backup ID: " + backupId);
+        // Step 2: Call BackupManager to handle restoration
+        boolean success;
+        try {
+            success = backupManager.restoreBackupById(backupId);
+        } catch (Exception e) {
+            System.out.println("Error: An exception occurred while restoring the backup: " + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+
+        // Step 3: Provide feedback to the user
+        if (success) {
+            System.out.println("Backup restored successfully for ID: " + backupId);
         } else {
-            System.out.println("Restore failed or no matching backup found for ID: " + backupId);
+            System.out.println("Error: Backup restoration failed for ID: " + backupId);
         }
     }
 
-
     private void displayStatus() {
         System.out.println("Showing system status...");
-        // TODO: Show next scheduled backups, last successful backup, etc.
+        try {
+            // Fetch system status from BackupManager
+            SystemStatus status = backupManager.getSystemStatus();
+    
+            // Display scheduler status
+            System.out.println("Scheduler Status: " + (status.isSchedulerActive() ? "Active" : "Stopped"));
+    
+            // Display last successful backups
+            System.out.println("\nLast Successful Backups:");
+            status.getLastBackupTimes().forEach((target, time) -> {
+                System.out.println("  " + target + ": " + (time != null ? time : "No backups yet"));
+            });
+    
+            // Display next scheduled backups
+            System.out.println("\nNext Scheduled Backups:");
+            status.getNextBackupTimes().forEach((target, time) -> {
+                System.out.println("  " + target + ": " + (time != null ? time : "Not scheduled"));
+            });
+        } catch (Exception e) {
+            System.out.println("Error: Unable to fetch system status: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void listBackups() {
         System.out.println("Showing all backups we have...");
-        // TODO: Query and print backup metadata
+        try {
+            // Fetch list of backups from BackupManager
+            List<BackupMetadata> backups = backupManager.getAllBackups();
+    
+            // Display backups in tabular format
+            System.out.printf("%-10s %-20s %-10s %-20s\n", "BackupID", "TargetName", "Type", "Timestamp");
+            System.out.println("--------------------------------------------------------------");
+            for (BackupMetadata backup : backups) {
+                System.out.printf("%-10s %-20s %-10s %-20s\n",
+                        backup.getBackupId(),
+                        backup.getTargetName(),
+                        backup.getType(),
+                        backup.getTimestamp());
+            }
+        } catch (Exception e) {
+            System.out.println("Error: Unable to fetch backups: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void enableServer(Map<String, String> args) {
@@ -358,7 +376,20 @@ public class CLI {
 
         String targetName = args.get("target");
         System.out.println("Enabling server: " + targetName);
-        // TODO: Mark this server as enabled
+
+        try {
+            // Call BackupManager to enable the server
+            boolean success = backupManager.enableTarget(targetName);
+    
+            if (success) {
+                System.out.println("Server " + targetName + " has been successfully enabled.");
+            } else {
+                System.out.println("Error: Could not enable server " + targetName + ". It may not exist.");
+            }
+        } catch (Exception e) {
+            System.out.println("Error: An exception occurred while enabling the server: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void disableServer(Map<String, String> args) {
@@ -369,7 +400,20 @@ public class CLI {
 
         String targetName = args.get("target");
         System.out.println("Disabling server: " + targetName);
-        // TODO: Mark this server as disabled
+
+        try {
+            // Call BackupManager to disable the server
+            boolean success = backupManager.disableTarget(targetName);
+    
+            if (success) {
+                System.out.println("Server " + targetName + " has been successfully disabled.");
+            } else {
+                System.out.println("Error: Could not disable server " + targetName + ". It may not exist.");
+            }
+        } catch (Exception e) {
+            System.out.println("Error: An exception occurred while disabling the server: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void validateScript(Map<String, String> args) {
@@ -380,7 +424,20 @@ public class CLI {
 
         String scriptPath = args.get("path");
         System.out.println("Checking script at: " + scriptPath);
-        // TODO: Test-run the script or do some checks
+        
+        try {
+            // Call ScriptExecutor to validate the script
+            boolean isValid = scriptExecutor.validateScript(scriptPath);
+    
+            if (isValid) {
+                System.out.println("Script validated successfully.");
+            } else {
+                System.out.println("Error: Script validation failed. Check the script for issues.");
+            }
+        } catch (Exception e) {
+            System.out.println("Error: An exception occurred while validating the script: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void exit() {
