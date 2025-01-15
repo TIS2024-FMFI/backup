@@ -5,8 +5,10 @@ import org.slf4j.Logger;
 import uniba.system_package.utils.LogManager;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.channels.Channel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -162,4 +164,58 @@ public class StorageManager {
             return List.of();
         }
     }
+
+    private static final int MAX_RETRIES = 3;
+
+    /**
+     * Uploads a backup file to a remote server using SFTP.
+     * This method includes a retry mechanism to handle transient errors.
+     */
+    public boolean uploadToRemote(String localFilePath, String remoteDir, String host, int port, String username, String password) {
+        int retries = 0;
+
+        while (retries < MAX_RETRIES) {
+            try {
+                JSch jsch = new JSch();
+                Session session = jsch.getSession(username, host, port);
+                session.setPassword(password);
+
+                // Avoid prompting for key confirmation
+                java.util.Properties config = new java.util.Properties();
+                config.put("StrictHostKeyChecking", "no");
+                session.setConfig(config);
+                session.connect();
+
+                Channel channel = session.openChannel("sftp");
+                channel.connect();
+
+                ChannelSftp sftpChannel = (ChannelSftp) channel;
+                sftpChannel.cd(remoteDir);
+
+                File localFile = new File(localFilePath);
+                try (FileInputStream fis = new FileInputStream(localFile)) {
+                    sftpChannel.put(fis, localFile.getName());
+                }
+
+                sftpChannel.exit();
+                session.disconnect();
+
+                System.out.println("File uploaded successfully to " + remoteDir);
+                return true;
+            } catch (SftpException e) {
+                System.out.println("SFTP error: " + e.getMessage());
+            } catch (JSchException e) {
+                System.out.println("SSH connection error: " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("Unexpected error: " + e.getMessage());
+            }
+
+            retries++;
+            System.out.println("Retrying upload... Attempt " + (retries + 1));
+        }
+
+        System.out.println("Error: File upload failed after " + MAX_RETRIES + " attempts.");
+        return false;
+    }
+
 }
