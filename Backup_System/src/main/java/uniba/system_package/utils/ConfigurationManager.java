@@ -3,18 +3,24 @@ package uniba.system_package.utils;
 import org.yaml.snakeyaml.Yaml;
 import java.io.InputStream;
 import java.util.List;
-
+import java.util.logging.Logger;
 
 public class ConfigurationManager {
+    private static final Logger logger = Logger.getLogger(ConfigurationManager.class.getName());
     private Config config;
 
     // Load the configuration file
     public void loadConfiguration(String configFilePath) {
         try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(configFilePath)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Configuration file not found: " + configFilePath);
+            }
             Yaml yaml = new Yaml();
             this.config = yaml.loadAs(inputStream, Config.class);
+            validateConfig(); // Validate after loading
         } catch (Exception e) {
-            throw new RuntimeException("Error loading configuration file: " + configFilePath, e);
+            logger.severe("Error loading configuration file: " + configFilePath + " - " + e.getMessage());
+            throw new RuntimeException("Failed to load configuration file.", e);
         }
     }
 
@@ -30,27 +36,46 @@ public class ConfigurationManager {
     }
 
     public void validateConfig() {
-        // Validate schedules
-        if (config.getSchedule().getFullBackup() == null || config.getSchedule().getIncrementalBackup() == null) {
-            throw new IllegalArgumentException("Schedules must include both full and incremental backups.");
-        }
+        try {
+            // Validate schedules
+            if (config.getSchedule().getFullBackup() == null || config.getSchedule().getIncrementalBackup() == null) {
+                throw new IllegalArgumentException("Schedules must include both full and incremental backups.");
+            }
 
-        // Validate retention policies
-        Config.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
-        if (retentionPolicy.getFullBackupsToKeep() <= 0) {
-            throw new IllegalArgumentException("Retention policy must specify a positive number of full backups to keep.");
-        }
-        if (retentionPolicy.getIncrementalBackupsToKeep() <= 0) {
-            throw new IllegalArgumentException("Retention policy must specify a positive number of incremental backups to keep.");
-        }
+            // Validate retention policies
+            Config.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
+            if (retentionPolicy.getFullBackupsToKeep() <= 0) {
+                throw new IllegalArgumentException("Retention policy must specify a positive number of full backups to keep.");
+            }
+            if (retentionPolicy.getIncrementalBackupsToKeep() <= 0) {
+                throw new IllegalArgumentException("Retention policy must specify a positive number of incremental backups to keep.");
+            }
 
-        // Validate remote storage
-        Config.RemoteStorage remoteStorage = config.getRemoteStorage();
-        if (remoteStorage.getHost() == null || remoteStorage.getUser() == null || remoteStorage.getPassword() == null) {
-            throw new IllegalArgumentException("Remote storage configuration must include host, user, and password.");
+            // Validate remote storage
+            Config.RemoteStorage remoteStorage = config.getRemoteStorage();
+            if (remoteStorage.getHost() == null || remoteStorage.getUser() == null || remoteStorage.getPassword() == null) {
+                throw new IllegalArgumentException("Remote storage configuration must include host, user, and password.");
+            }
+
+            // Validate scripts
+            for (Config.Server server : config.getServers()) {
+                if (server.getPreBackupScript() != null && !isValidScript(server.getPreBackupScript())) {
+                    throw new IllegalArgumentException("Invalid pre-backup script for server: " + server.getName());
+                }
+                if (server.getPostBackupScript() != null && !isValidScript(server.getPostBackupScript())) {
+                    throw new IllegalArgumentException("Invalid post-backup script for server: " + server.getName());
+                }
+            }
+        } catch (Exception e) {
+            logger.severe("Configuration validation failed: " + e.getMessage());
+            throw e;
         }
     }
 
+    private boolean isValidScript(String scriptPath) {
+        // Simulate script validation logic, e.g., check file existence and execute permissions
+        return scriptPath.endsWith(".sh") || scriptPath.endsWith(".bat"); // Simple validation example
+    }
 
     // Get the list of servers
     public List<Config.Server> getServers() {
@@ -89,7 +114,6 @@ public class ConfigurationManager {
         private RetentionPolicy retentionPolicy;
         private Schedule schedule;
         private Email email; // Add email configuration
-
 
         // Getters and Setters
         public List<Server> getServers() {
@@ -132,7 +156,6 @@ public class ConfigurationManager {
             this.schedule = schedule;
         }
 
-
         public Email getEmail() {
             return email;
         }
@@ -141,7 +164,6 @@ public class ConfigurationManager {
             this.email = email;
         }
 
-        // Schedule class for cron expressions
         public static class Schedule {
             private String fullBackup;          // Cron for full backups
             private String incrementalBackup;   // Cron for incremental backups
@@ -169,7 +191,6 @@ public class ConfigurationManager {
             private String password;
             private String remotePath;
 
-            // Getters and Setters
             public String getHost() {
                 return host;
             }
@@ -207,7 +228,6 @@ public class ConfigurationManager {
             private int fullBackupsToKeep;
             private int incrementalBackupsToKeep;
 
-            // Getters and Setters
             public int getFullBackupsToKeep() {
                 return fullBackupsToKeep;
             }
@@ -234,7 +254,6 @@ public class ConfigurationManager {
             private String preBackupScript; // Pre-backup script
             private String postBackupScript; // Post-backup script
 
-            // Getters and Setters
             public String getName() {
                 return name;
             }
@@ -301,7 +320,6 @@ public class ConfigurationManager {
             private String preBackupScript; // Pre-backup script
             private String postBackupScript; // Post-backup script
 
-            // Getters and Setters
             public String getName() {
                 return name;
             }
@@ -367,7 +385,6 @@ public class ConfigurationManager {
             private String fromAddress;
             private List<String> toAddresses;
 
-            // Getters and Setters
             public String getSmtpHost() {
                 return smtpHost;
             }
