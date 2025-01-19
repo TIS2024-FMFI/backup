@@ -6,15 +6,23 @@ import uniba.system_package.scheduler.Scheduler;
 import uniba.system_package.storage.RetentionPolicy;
 import uniba.system_package.storage.StorageManager;
 import uniba.system_package.utils.ConfigurationManager;
+import uniba.system_package.utils.ConfigurationManager.Config.Database;
 import uniba.system_package.utils.LogManager;
 import uniba.system_package.notification.NotificationManager;
 import org.slf4j.Logger;
+
+import main.java.uniba.system_package.backup.SystemStatus;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.io.IOException;
 
 public class BackupManager {
     private static final Logger logger = LogManager.getLogger(BackupManager.class);
@@ -24,12 +32,15 @@ public class BackupManager {
     private final RetentionPolicy retentionPolicy;
     private final Scheduler scheduler;
     private final NotificationManager notificationManager;
+    private Map<String, BackupMetadata> backupTargets;
 
-    public BackupManager(ConfigurationManager configurationManager) {
+    public BackupManager(ConfigurationManager configurationManager, StorageManager storageManager, Scheduler scheduler, Map<String, BackupMetadata> backupTargets) {
         this.configurationManager = configurationManager;
         this.storageManager = new StorageManager();
         this.retentionPolicy = new RetentionPolicy();
         this.scheduler = new Scheduler();
+        this.scheduler = scheduler;
+        this.backupTargets = backupTargets;
 
         // Initialize NotificationManager
         ConfigurationManager.Config.Email emailConfig = configurationManager.getEmail();
@@ -314,4 +325,193 @@ public class BackupManager {
             return false;
         }
     }
+
+    public SystemStatus getSystemStatus() {
+        boolean schedulerActive = scheduler.isRunning();
+
+        Map<String, String> lastBackupTimes = new HashMap<>();
+        Map<String, String> nextBackupTimes = new HashMap<>();
+
+        for (String target : backupTargets.keySet()) {
+            BackupMetadata lastBackup = backupTargets.get(target);
+            String lastTime = (lastBackup != null) ? lastBackup.getStartTime().toString() : "No backups yet";
+            lastBackupTimes.put(target, lastTime);
+
+            String nextTime = scheduler.getNextRunTime(target);
+            nextBackupTimes.put(target, (nextTime != null) ? nextTime : "Not scheduled");
+        }
+
+        return new SystemStatus(schedulerActive, lastBackupTimes, nextBackupTimes);
+    }
+
+    /**
+     * Restores a backup by its unique ID.
+     *
+     * @param backupId The unique ID of the backup to restore.
+     * @return true if the restore is successful, false otherwise.
+     */
+    public boolean restoreBackupById(String backupId) {
+        logger.info("Starting restore process for backup ID: {}", backupId);
+
+        try {
+            // Locate the backup file by its ID
+            Path backupPath = Paths.get("/backups/", backupId + ".tar.gz");
+
+            if (!backupPath.toFile().exists()) {
+                logger.error("Backup file not found for ID: {}", backupId);
+                return false;
+            }
+
+            // Restore the backup (unpack or import)
+            boolean restoreSuccess = storageManager.restoreBackup(backupPath);
+
+            if (restoreSuccess) {
+                logger.info("Backup ID {} restored successfully.", backupId);
+                return true;
+            } else {
+                logger.error("Failed to restore backup ID: {}", backupId);
+                return false;
+            }
+        } catch (Exception e) {
+            logger.error("An error occurred while restoring backup ID {}: {}", backupId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Enables a target (server or database) by name.
+     *
+     * @param targetName The name of the target to enable.
+     * @return true if the target was found and enabled, false otherwise.
+     */
+    public boolean enableTarget(String targetName) {
+        logger.info("Enabling target: {}", targetName);
+
+        // Search for the target in servers
+        Optional<ConfigurationManager.Config.Server> serverOpt = configurationManager.getServers().stream()
+                .filter(server -> server.getName().equalsIgnoreCase(targetName))
+                .findFirst();
+
+        if (serverOpt.isPresent()) {
+            serverOpt.get().setEnabled(true);
+            logger.info("Server '{}' has been enabled.", targetName);
+            return true;
+        }
+
+        // Search for the target in databases
+        Optional<ConfigurationManager.Config.Database> databaseOpt = configurationManager.getDatabases().stream()
+                .filter(database -> database.getName().equalsIgnoreCase(targetName))
+                .findFirst();
+
+        if (databaseOpt.isPresent()) {
+            databaseOpt.get().setEnabled(true);
+            logger.info("Database '{}' has been enabled.", targetName);
+            return true;
+        }
+
+        logger.warn("Target '{}' not found. Cannot enable.", targetName);
+        return false;
+    }
+
+    /**
+     * Disables a target (server or database) by name.
+     *
+     * @param targetName The name of the target to disable.
+     * @return true if the target was found and disabled, false otherwise.
+     */
+    public boolean disableTarget(String targetName) {
+        logger.info("Disabling target: {}", targetName);
+
+        // Search for the target in servers
+        Optional<ConfigurationManager.Config.Server> serverOpt = configurationManager.getServers().stream()
+                .filter(server -> server.getName().equalsIgnoreCase(targetName))
+                .findFirst();
+
+        if (serverOpt.isPresent()) {
+            serverOpt.get().setEnabled(false);
+            logger.info("Server '{}' has been disabled.", targetName);
+            return true;
+        }
+
+        // Search for the target in databases
+        Optional<ConfigurationManager.Config.Database> databaseOpt = configurationManager.getDatabases().stream()
+                .filter(database -> database.getName().equalsIgnoreCase(targetName))
+                .findFirst();
+
+        if (databaseOpt.isPresent()) {
+            databaseOpt.get().setEnabled(false);
+            logger.info("Database '{}' has been disabled.", targetName);
+            return true;
+        }
+
+        logger.warn("Target '{}' not found. Cannot disable.", targetName);
+        return false;
+    }
+
+    /**
+     * Retrieves all backups as a list of BackupMetadata.
+     *
+     * @return List of BackupMetadata objects representing all stored backups.
+     */
+    public List<BackupMetadata> getAllBackups() {
+        logger.info("Retrieving all backups...");
+        List<BackupMetadata> backups = new ArrayList<>();
+
+        try {
+            Path backupsDir = Paths.get("/backups");
+            if (!Files.exists(backupsDir) || !Files.isDirectory(backupsDir)) {
+                logger.warn("Backups directory does not exist or is not a directory: {}", backupsDir);
+                return backups;
+            }
+
+            Files.list(backupsDir).filter(Files::isRegularFile).forEach(file -> {
+                try {
+                    // Parse backup metadata from file name or content
+                    String fileName = file.getFileName().toString();
+                    BackupMetadata metadata = parseBackupMetadata(fileName);
+                    if (metadata != null) {
+                        backups.add(metadata);
+                    }
+                } catch (Exception e) {
+                    logger.error("Error parsing backup file '{}': {}", file.getFileName(), e.getMessage(), e);
+                }
+            });
+        } catch (IOException e) {
+            logger.error("Error listing backups: {}", e.getMessage(), e);
+        }
+
+        logger.info("Found {} backups.", backups.size());
+        return backups;
+    }
+
+    /**
+     * Parses a backup file name to create a BackupMetadata object.
+     *
+     * @param fileName The file name of the backup.
+     * @return BackupMetadata object, or null if parsing fails.
+     */
+    private BackupMetadata parseBackupMetadata(String fileName) {
+        try {
+            // Example: backup_Server1_full_20250101.tar.gz
+            String[] parts = fileName.split("_");
+            if (parts.length < 4) {
+                logger.warn("Invalid backup file name format: {}", fileName);
+                return null;
+            }
+
+            String targetName = parts[1];
+            String backupType = parts[2];
+            String timestamp = parts[3].replace(".tar.gz", "");
+
+            BackupMetadata metadata = new BackupMetadata();
+            metadata.setTargetName(targetName);
+            metadata.setBackupType(backupType);
+            metadata.setStartTime(timestamp); // Assuming timestamp is in valid format
+            return metadata;
+        } catch (Exception e) {
+            logger.error("Error parsing metadata from file name '{}': {}", fileName, e.getMessage(), e);
+            return null;
+        }
+    }
+
 }
