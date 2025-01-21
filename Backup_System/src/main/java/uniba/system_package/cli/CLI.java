@@ -1,6 +1,9 @@
 package uniba.system_package.cli;
 
 import uniba.system_package.backup.BackupManager;
+import uniba.system_package.backup.BackupMetadata;
+import uniba.system_package.backup.SystemStatus;
+import uniba.system_package.scripts.ScriptExecutor;
 import uniba.system_package.utils.ConfigurationManager;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -349,18 +352,16 @@ public class CLI {
     private void listBackups() {
         System.out.println("Showing all backups we have...");
         try {
-            // Fetch list of backups from BackupManager
             List<BackupMetadata> backups = backupManager.getAllBackups();
-    
-            // Display backups in tabular format
-            System.out.printf("%-10s %-20s %-10s %-20s\n", "BackupID", "TargetName", "Type", "Timestamp");
-            System.out.println("--------------------------------------------------------------");
+
+            System.out.printf("%-10s %-20s %-15s %-20s\n", "BackupID", "TargetName", "Type", "StartTime");
+            System.out.println("---------------------------------------------------------------");
             for (BackupMetadata backup : backups) {
-                System.out.printf("%-10s %-20s %-10s %-20s\n",
+                System.out.printf("%-10s %-20s %-15s %-20s\n",
                         backup.getBackupId(),
                         backup.getTargetName(),
-                        backup.getType(),
-                        backup.getTimestamp());
+                        backup.getBackupType(),
+                        backup.getStartTime());
             }
         } catch (Exception e) {
             System.out.println("Error: Unable to fetch backups: " + e.getMessage());
@@ -421,24 +422,30 @@ public class CLI {
             System.out.println("Error: Missing required argument --path <SCRIPT_PATH>.");
             return;
         }
-
+    
         String scriptPath = args.get("path");
-        System.out.println("Checking script at: " + scriptPath);
-        
+        System.out.println("Validating script at: " + scriptPath);
+    
         try {
-            // Call ScriptExecutor to validate the script
+            // Crear una instancia de ScriptExecutor
+            ScriptExecutor scriptExecutor = new ScriptExecutor();
+    
+            // Llamar al método validateScript
             boolean isValid = scriptExecutor.validateScript(scriptPath);
     
+            // Resultado de la validación
             if (isValid) {
                 System.out.println("Script validated successfully.");
             } else {
-                System.out.println("Error: Script validation failed. Check the script for issues.");
+                System.out.println("Error: Script validation failed. Ensure the script exists, is a file, and is executable.");
             }
         } catch (Exception e) {
             System.out.println("Error: An exception occurred while validating the script: " + e.getMessage());
             e.printStackTrace();
         }
     }
+    
+    
 
     private void exit() {
         System.out.println("Exiting the CLI. Goodbye!");

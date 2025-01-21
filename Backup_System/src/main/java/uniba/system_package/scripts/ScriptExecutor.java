@@ -3,12 +3,41 @@ package uniba.system_package.scripts;
 import uniba.system_package.utils.LogManager;
 import org.slf4j.Logger;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
 
 public class ScriptExecutor {
     private static final Logger logger = LogManager.getLogger(ScriptExecutor.class);
+
+    /**
+     * Validates the script at the given path.
+     *
+     * @param scriptPath The path to the script.
+     * @return True if the script is valid, otherwise false.
+     */
+    public boolean validateScript(String scriptPath) {
+        File scriptFile = new File(scriptPath);
+
+        // Validate the script file existence
+        if (!scriptFile.exists()) {
+            logger.error("Script file not found: {}", scriptPath);
+            return false;
+        }
+
+        // Validate if the file is a regular file
+        if (!scriptFile.isFile()) {
+            logger.error("Invalid script file (not a regular file): {}", scriptPath);
+            return false;
+        }
+
+        // Validate execute permissions
+        if (!scriptFile.canExecute()) {
+            logger.error("Script file is not executable: {}", scriptPath);
+            return false;
+        }
+
+        logger.info("Script at {} is valid.", scriptPath);
+        return true;
+    }
 
     /**
      * Executes a script at the given path.
@@ -20,26 +49,14 @@ public class ScriptExecutor {
         File scriptFile = new File(scriptPath);
 
         // Validate the script file
-        if (!scriptFile.exists()) {
-            logger.error("Script file not found: {}", scriptPath);
-            return false;
-        }
-        if (!scriptFile.canExecute()) {
-            logger.error("Script file is not executable: {}", scriptPath);
+        if (!validateScript(scriptPath)) {
+            logger.error("Script validation failed: {}", scriptPath);
             return false;
         }
 
         // Execute the script
         try {
             Process process = new ProcessBuilder(scriptPath).start();
-
-            // Capture the output
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    logger.info("Script output: {}", line);
-                }
-            }
 
             // Wait for the process to complete
             int exitCode = process.waitFor();
