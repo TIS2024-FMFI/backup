@@ -1,5 +1,5 @@
 package uniba.system_package.backup;
-
+import uniba.system_package.backup.Database;
 import org.quartz.CronExpression;
 import org.quartz.SchedulerException;
 import org.slf4j.Logger;
@@ -8,8 +8,8 @@ import uniba.system_package.scheduler.Scheduler;
 import uniba.system_package.storage.RetentionPolicy;
 import uniba.system_package.storage.StorageManager;
 import uniba.system_package.utils.ConfigurationManager;
-import uniba.system_package.utils.ConfigurationManager.Config.Database;
 import uniba.system_package.utils.LogManager;
+
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -143,7 +143,8 @@ public class BackupManager {
 
         // Convert Config.Database to Database (implements BackupTarget)
         configurationManager.getDatabases().forEach(databaseConfig -> {
-            backupTargets.add((BackupTarget) new Database(
+
+            BackupTarget databaseTarget = new Database(
                     databaseConfig.getName(),
                     databaseConfig.getType(),
                     databaseConfig.getHost(),
@@ -151,12 +152,12 @@ public class BackupManager {
                     databaseConfig.getPassword(),
                     databaseConfig.getPreBackupScript(),
                     databaseConfig.getPostBackupScript()
-            ));
+            );
+            backupTargets.add(databaseTarget);
         });
 
         return backupTargets;
     }
-
 
 
 

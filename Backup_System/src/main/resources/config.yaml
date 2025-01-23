@@ -20,7 +20,7 @@ databases:
 
 schedule:
   fullBackup: "0 0 2 ? * SUN"          # Every Sunday at 2 AM
-  incrementalBackup: "0 0 0/23 * * ?"  # Every 6 hours
+  incrementalBackup: "0 0 0/23 * * ?"  # Every 23 hours
 
 
 email:
