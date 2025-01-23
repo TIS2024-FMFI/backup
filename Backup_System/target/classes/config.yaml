@@ -14,19 +14,20 @@ databases:
     type: mysql
     host: localhost
     user: dbuser
-    password: dbpassword
+    password: dbpasswords
     preBackupScript: C:\scripts\pre_backup_db.bat
     postBackupScript: C:\scripts\post_backup_db.bat
 
 schedule:
-  fullBackup: "0 2 * * 0"          # Every Sunday at 2 AM
-  incrementalBackup: "0 */6 * * *" # Every 6 hours
+  fullBackup: "0 0 2 ? * SUN"          # Every Sunday at 2 AM
+  incrementalBackup: "0 0 0/23 * * ?"  # Every 6 hours
+
 
 email:
   smtpHost: "smtp.gmail.com"
   smtpPort: 587
-  username: "mighty.rns@gmail.com"
-  password: "ugmy vymi" # Use an App Password, not your account password
+  username: "mighty.rns@gmail.com" #my email
+  password: "ugmy vymi" # Use an App Password, not your account password (security reason not full)
   fromAddress: "mighty.rns@gmail.com"
   toAddresses:
     - "mighty.rns@gmail.com"

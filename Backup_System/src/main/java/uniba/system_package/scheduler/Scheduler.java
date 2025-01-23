@@ -1,14 +1,14 @@
 package uniba.system_package.scheduler;
 
-import uniba.system_package.backup.BackupJob;
-import uniba.system_package.backup.BackupTarget;
-import uniba.system_package.backup.BackupManager;
-import uniba.system_package.utils.LogManager;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
+import org.quartz.impl.matchers.GroupMatcher;
 import org.slf4j.Logger;
+import uniba.system_package.backup.BackupManager;
+import uniba.system_package.backup.BackupTarget;
+import uniba.system_package.utils.LogManager;
 
-import java.security.spec.EdDSAParameterSpec;
+import java.util.List;
 
 public class Scheduler {
     private static final Logger logger = LogManager.getLogger(Scheduler.class);
@@ -128,4 +128,40 @@ public class Scheduler {
             }
         }
     }
+
+    // Add this method to Scheduler.java
+    public boolean isRunning() {
+        try {
+            // Return true if the scheduler is not in standby or shutdown mode
+            return !quartzScheduler.isInStandbyMode() && !quartzScheduler.isShutdown();
+        } catch (SchedulerException e) {
+            // Log the error and return false if something went wrong
+            logger.error("Failed to determine scheduler status: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    public String getNextRunTime(String jobName) {
+        try {
+
+            for (String groupName : quartzScheduler.getJobGroupNames()) {
+                for (JobKey jobKey : quartzScheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName))) {
+                    if (jobKey.getName().equals(jobName)) {
+                        // Get all triggers associated with this job
+                        List<? extends Trigger> triggers = quartzScheduler.getTriggersOfJob(jobKey);
+                        if (!triggers.isEmpty()) {
+                            // Return the next fire time of the first trigger
+                            Trigger trigger = triggers.get(0);
+                            return trigger.getNextFireTime().toString();
+                        }
+                    }
+                }
+            }
+        } catch (SchedulerException e) {
+            logger.error("Failed to retrieve next run time for job '{}': {}", jobName, e.getMessage(), e);
+        }
+        // If no job or trigger was found, return a default message
+        return "Not scheduled";
+    }
+
 }

@@ -1,6 +1,8 @@
 package uniba.system_package.utils;
 
 import org.yaml.snakeyaml.Yaml;
+
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.List;
 import java.util.logging.Logger;
@@ -11,10 +13,7 @@ public class ConfigurationManager {
 
     // Load the configuration file
     public void loadConfiguration(String configFilePath) {
-        try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(configFilePath)) {
-            if (inputStream == null) {
-                throw new IllegalArgumentException("Configuration file not found: " + configFilePath);
-            }
+        try (InputStream inputStream = new FileInputStream(configFilePath)) { // Use FileInputStream for absolute paths
             Yaml yaml = new Yaml();
             this.config = yaml.loadAs(inputStream, Config.class);
             validateConfig(); // Validate after loading
@@ -23,6 +22,7 @@ public class ConfigurationManager {
             throw new RuntimeException("Failed to load configuration file.", e);
         }
     }
+
 
     public Config.Server getServer(String name) {
         return config.getServers().stream()
@@ -115,6 +115,7 @@ public class ConfigurationManager {
         private Schedule schedule;
         private Email email; // Add email configuration
 
+
         // Getters and Setters
         public List<Server> getServers() {
             return servers;
@@ -163,6 +164,8 @@ public class ConfigurationManager {
         public void setEmail(Email email) {
             this.email = email;
         }
+
+
 
         public static class Schedule {
             private String fullBackup;          // Cron for full backups
@@ -254,6 +257,8 @@ public class ConfigurationManager {
             private String preBackupScript; // Pre-backup script
             private String postBackupScript; // Post-backup script
 
+            private boolean enabled = true; // Add this field with default value
+
             public String getName() {
                 return name;
             }
@@ -309,6 +314,16 @@ public class ConfigurationManager {
             public void setPostBackupScript(String postBackupScript) {
                 this.postBackupScript = postBackupScript;
             }
+
+
+            // New methods to handle enabled/disabled state
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
         }
 
         public static class Database {
@@ -319,6 +334,21 @@ public class ConfigurationManager {
             private String password;
             private String preBackupScript; // Pre-backup script
             private String postBackupScript; // Post-backup script
+            private boolean enabled = true; // Add this field with default value
+
+            public Database(String name, String type, String host, String user, String password, String preBackupScript, String postBackupScript) {
+                this.name = name;
+                this.type = type;
+                this.host = host;
+                this.user = user;
+                this.password = password;
+                this.preBackupScript = preBackupScript;
+                this.postBackupScript = postBackupScript;
+            }
+
+            // Add the default constructor if needed
+            public Database() {
+            }
 
             public String getName() {
                 return name;
@@ -374,6 +404,15 @@ public class ConfigurationManager {
 
             public void setPostBackupScript(String postBackupScript) {
                 this.postBackupScript = postBackupScript;
+            }
+
+            // New methods to handle enabled/disabled state
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
             }
         }
 

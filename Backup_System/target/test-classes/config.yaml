@@ -1,0 +1,42 @@
+servers:
+  - name: Server1
+    host: localhost
+    user: admin
+    password: password123
+    pathsToBackup:
+      - C:\path\to\file1
+      - C:\path\to\file2
+    preBackupScript: C:\scripts\pre_backup_server1.bat
+    postBackupScript: C:\scripts\post_backup_server1.bat
+
+databases:
+  - name: TestDatabase
+    type: mysql
+    host: localhost
+    user: dbuser
+    password: dbpasswords
+    preBackupScript: C:\scripts\pre_backup_db.bat
+    postBackupScript: C:\scripts\post_backup_db.bat
+
+schedule:
+  fullBackup: "0 2 * * 0"          # Every Sunday at 2 AM
+  incrementalBackup: "0 */6 * * *" # Every 6 hours
+
+email:
+  smtpHost: "smtp.gmail.com"
+  smtpPort: 587
+  username: "mighty.rns@gmail.com"
+  password: "ugmy vymi" # Use an App Password, not your account password
+  fromAddress: "mighty.rns@gmail.com"
+  toAddresses:
+    - "mighty.rns@gmail.com"
+
+remoteStorage:
+  host: 192.168.1.100
+  user: backupuser
+  password: securepassword
+  remotePath: /path/on/remote
+
+retentionPolicy:
+  fullBackupsToKeep: 2
+  incrementalBackupsToKeep: 5

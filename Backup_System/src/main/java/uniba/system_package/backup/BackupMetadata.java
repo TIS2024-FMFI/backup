@@ -21,6 +21,10 @@ public class BackupMetadata {
         this.backupType = backupType;
     }
 
+    public BackupMetadata() {
+
+    }
+
     // Getters and setters
 
     public String getBackupId() {

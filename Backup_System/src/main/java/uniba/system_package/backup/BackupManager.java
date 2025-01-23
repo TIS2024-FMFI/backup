@@ -2,27 +2,28 @@ package uniba.system_package.backup;
 
 import org.quartz.CronExpression;
 import org.quartz.SchedulerException;
+import org.slf4j.Logger;
+import uniba.system_package.notification.NotificationManager;
 import uniba.system_package.scheduler.Scheduler;
 import uniba.system_package.storage.RetentionPolicy;
 import uniba.system_package.storage.StorageManager;
 import uniba.system_package.utils.ConfigurationManager;
 import uniba.system_package.utils.ConfigurationManager.Config.Database;
 import uniba.system_package.utils.LogManager;
-import uniba.system_package.notification.NotificationManager;
-import org.slf4j.Logger;
 
-import main.java.uniba.system_package.backup.SystemStatus;
-
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.io.IOException;
 
 public class BackupManager {
     private static final Logger logger = LogManager.getLogger(BackupManager.class);
@@ -32,13 +33,12 @@ public class BackupManager {
     private final RetentionPolicy retentionPolicy;
     private final Scheduler scheduler;
     private final NotificationManager notificationManager;
-    private Map<String, BackupMetadata> backupTargets;
+    private final Map<String, BackupMetadata> backupTargets;
 
     public BackupManager(ConfigurationManager configurationManager, StorageManager storageManager, Scheduler scheduler, Map<String, BackupMetadata> backupTargets) {
         this.configurationManager = configurationManager;
         this.storageManager = new StorageManager();
         this.retentionPolicy = new RetentionPolicy();
-        this.scheduler = new Scheduler();
         this.scheduler = scheduler;
         this.backupTargets = backupTargets;
 
@@ -128,8 +128,8 @@ public class BackupManager {
     private List<BackupTarget> addBackupTargets() {
         List<BackupTarget> backupTargets = new ArrayList<>();
 
-        // Load servers
-        for (ConfigurationManager.Config.Server serverConfig : configurationManager.getServers()) {
+        // Convert Config.Server to Server (implements BackupTarget)
+        configurationManager.getServers().forEach(serverConfig -> {
             backupTargets.add(new Server(
                     serverConfig.getName(),
                     serverConfig.getHost(),
@@ -139,11 +139,11 @@ public class BackupManager {
                     serverConfig.getPreBackupScript(),
                     serverConfig.getPostBackupScript()
             ));
-        }
+        });
 
-        // Load databases
-        for (ConfigurationManager.Config.Database databaseConfig : configurationManager.getDatabases()) {
-            backupTargets.add(new Database(
+        // Convert Config.Database to Database (implements BackupTarget)
+        configurationManager.getDatabases().forEach(databaseConfig -> {
+            backupTargets.add((BackupTarget) new Database(
                     databaseConfig.getName(),
                     databaseConfig.getType(),
                     databaseConfig.getHost(),
@@ -152,10 +152,12 @@ public class BackupManager {
                     databaseConfig.getPreBackupScript(),
                     databaseConfig.getPostBackupScript()
             ));
-        }
+        });
 
         return backupTargets;
     }
+
+
 
 
     /**
@@ -326,15 +328,20 @@ public class BackupManager {
         }
     }
 
+
     public SystemStatus getSystemStatus() {
         boolean schedulerActive = scheduler.isRunning();
 
         Map<String, String> lastBackupTimes = new HashMap<>();
         Map<String, String> nextBackupTimes = new HashMap<>();
 
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+
         for (String target : backupTargets.keySet()) {
             BackupMetadata lastBackup = backupTargets.get(target);
-            String lastTime = (lastBackup != null) ? lastBackup.getStartTime().toString() : "No backups yet";
+            String lastTime = (lastBackup != null)
+                    ? formatter.format(Instant.ofEpochSecond(lastBackup.getStartTime()))
+                    : "No backups yet";
             lastBackupTimes.put(target, lastTime);
 
             String nextTime = scheduler.getNextRunTime(target);
@@ -385,33 +392,22 @@ public class BackupManager {
      * @return true if the target was found and enabled, false otherwise.
      */
     public boolean enableTarget(String targetName) {
-        logger.info("Enabling target: {}", targetName);
-
-        // Search for the target in servers
-        Optional<ConfigurationManager.Config.Server> serverOpt = configurationManager.getServers().stream()
-                .filter(server -> server.getName().equalsIgnoreCase(targetName))
-                .findFirst();
-
-        if (serverOpt.isPresent()) {
-            serverOpt.get().setEnabled(true);
-            logger.info("Server '{}' has been enabled.", targetName);
-            return true;
+        List<BackupTarget> targets = addBackupTargets();
+        for (BackupTarget target : targets) {
+            if (target.getName().equalsIgnoreCase(targetName)) {
+                if (target instanceof Server) {
+                    ((Server) target).setEnabled(true);
+                } else if (target instanceof Database) {
+                    ((Database) target).setEnabled(true);
+                }
+                logger.info("Target '{}' has been enabled.", targetName);
+                return true;
+            }
         }
-
-        // Search for the target in databases
-        Optional<ConfigurationManager.Config.Database> databaseOpt = configurationManager.getDatabases().stream()
-                .filter(database -> database.getName().equalsIgnoreCase(targetName))
-                .findFirst();
-
-        if (databaseOpt.isPresent()) {
-            databaseOpt.get().setEnabled(true);
-            logger.info("Database '{}' has been enabled.", targetName);
-            return true;
-        }
-
-        logger.warn("Target '{}' not found. Cannot enable.", targetName);
+        logger.warn("Target '{}' not found. Cannot enable it.", targetName);
         return false;
     }
+
 
     /**
      * Disables a target (server or database) by name.
@@ -420,33 +416,22 @@ public class BackupManager {
      * @return true if the target was found and disabled, false otherwise.
      */
     public boolean disableTarget(String targetName) {
-        logger.info("Disabling target: {}", targetName);
-
-        // Search for the target in servers
-        Optional<ConfigurationManager.Config.Server> serverOpt = configurationManager.getServers().stream()
-                .filter(server -> server.getName().equalsIgnoreCase(targetName))
-                .findFirst();
-
-        if (serverOpt.isPresent()) {
-            serverOpt.get().setEnabled(false);
-            logger.info("Server '{}' has been disabled.", targetName);
-            return true;
+        List<BackupTarget> targets = addBackupTargets();
+        for (BackupTarget target : targets) {
+            if (target.getName().equalsIgnoreCase(targetName)) {
+                if (target instanceof Server) {
+                    ((Server) target).setEnabled(false);
+                } else if (target instanceof Database) {
+                    ((Database) target).setEnabled(false);
+                }
+                logger.info("Target '{}' has been disabled.", targetName);
+                return true;
+            }
         }
-
-        // Search for the target in databases
-        Optional<ConfigurationManager.Config.Database> databaseOpt = configurationManager.getDatabases().stream()
-                .filter(database -> database.getName().equalsIgnoreCase(targetName))
-                .findFirst();
-
-        if (databaseOpt.isPresent()) {
-            databaseOpt.get().setEnabled(false);
-            logger.info("Database '{}' has been disabled.", targetName);
-            return true;
-        }
-
-        logger.warn("Target '{}' not found. Cannot disable.", targetName);
+        logger.warn("Target '{}' not found. Cannot disable it.", targetName);
         return false;
     }
+
 
     /**
      * Retrieves all backups as a list of BackupMetadata.
@@ -490,6 +475,7 @@ public class BackupManager {
      * @param fileName The file name of the backup.
      * @return BackupMetadata object, or null if parsing fails.
      */
+
     private BackupMetadata parseBackupMetadata(String fileName) {
         try {
             // Example: backup_Server1_full_20250101.tar.gz
@@ -503,15 +489,21 @@ public class BackupManager {
             String backupType = parts[2];
             String timestamp = parts[3].replace(".tar.gz", "");
 
+            // Convert timestamp string to long (epoch time)
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+            LocalDateTime dateTime = LocalDateTime.parse(timestamp, formatter);
+            long epochTime = dateTime.toEpochSecond(ZoneOffset.UTC);
+
             BackupMetadata metadata = new BackupMetadata();
             metadata.setTargetName(targetName);
             metadata.setBackupType(backupType);
-            metadata.setStartTime(timestamp); // Assuming timestamp is in valid format
+            metadata.setStartTime(epochTime); // Set as a long
             return metadata;
         } catch (Exception e) {
             logger.error("Error parsing metadata from file name '{}': {}", fileName, e.getMessage(), e);
             return null;
         }
     }
+
 
 }

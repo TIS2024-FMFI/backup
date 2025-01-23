@@ -8,15 +8,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.channels.Channel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 public class StorageManager {
     private static final Logger logger = LogManager.getLogger(StorageManager.class);
@@ -217,5 +218,69 @@ public class StorageManager {
         System.out.println("Error: File upload failed after " + MAX_RETRIES + " attempts.");
         return false;
     }
+
+    /**
+     * Restores a backup file by extracting it and optionally performing post-restore actions.
+     *
+     * @param backupPath The path to the backup file to restore.
+     * @return true if the restore was successful, false otherwise.
+     */
+    public boolean restoreBackup(Path backupPath) {
+        logger.info("Starting restore process for backup file: {}", backupPath);
+
+        // Step 1: Check if the backup file exists
+        if (!Files.exists(backupPath) || !Files.isRegularFile(backupPath)) {
+            logger.error("Backup file not found or is not a regular file: {}", backupPath);
+            return false;
+        }
+
+        // Step 2: Define the extraction directory
+        Path extractionDir = Path.of("restored_backups", backupPath.getFileName().toString().replace(".tar.gz", ""));
+        try {
+            Files.createDirectories(extractionDir);
+        } catch (IOException e) {
+            logger.error("Failed to create extraction directory '{}': {}", extractionDir, e.getMessage(), e);
+            return false;
+        }
+
+        // Step 3: Extract the backup file
+        if (!extractBackupFile(backupPath, extractionDir)) {
+            logger.error("Failed to extract backup file: {}", backupPath);
+            return false;
+        }
+
+        logger.info("Backup restored successfully to: {}", extractionDir);
+        return true;
+    }
+
+    /**
+     * Extracts a `.tar.gz` or `.zip` backup file to the specified directory.
+     *
+     * @param backupPath     The path to the backup file.
+     * @param extractionDir  The directory where the backup should be extracted.
+     * @return true if extraction was successful, false otherwise.
+     */
+    private boolean extractBackupFile(Path backupPath, Path extractionDir) {
+        logger.info("Extracting backup file: {}", backupPath);
+
+        try (ZipInputStream zipIn = new ZipInputStream(Files.newInputStream(backupPath))) {
+            ZipEntry entry;
+            while ((entry = zipIn.getNextEntry()) != null) {
+                Path filePath = extractionDir.resolve(entry.getName());
+                if (entry.isDirectory()) {
+                    Files.createDirectories(filePath);
+                } else {
+                    Files.copy(zipIn, filePath, StandardCopyOption.REPLACE_EXISTING);
+                }
+                zipIn.closeEntry();
+            }
+            logger.info("Extraction completed successfully.");
+            return true;
+        } catch (IOException e) {
+            logger.error("Error extracting backup file '{}': {}", backupPath, e.getMessage(), e);
+            return false;
+        }
+    }
+
 
 }

@@ -23,12 +23,19 @@
             <artifactId>snakeyaml</artifactId>
             <version>2.0</version>
         </dependency>
+
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>2.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.4.12</version>
+        </dependency>
+
         <!-- Unit Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -36,26 +43,21 @@
             <version>5.9.0</version>
             <scope>test</scope>
         </dependency>
-
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>1.4.12</version>
-        </dependency>
-
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>RELEASE</version>
-            <scope>compile</scope>
+            <version>7.7.0</version>
+            <scope>test</scope>
         </dependency>
 
+        <!-- Mail Handling -->
         <dependency>
             <groupId>com.sun.mail</groupId>
             <artifactId>jakarta.mail</artifactId>
             <version>1.6.7</version>
         </dependency>
 
+        <!-- SSH (for remote storage) -->
         <dependency>
             <groupId>com.jcraft</groupId>
             <artifactId>jsch</artifactId>
@@ -66,16 +68,24 @@
         <dependency>
             <groupId>org.quartz-scheduler</groupId>
             <artifactId>quartz</artifactId>
-            <version>2.3.2</version> <!-- Use the latest stable version -->
+            <version>2.3.2</version>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!--
-                The Maven Shade Plugin merges all dependencies into one fat JAR
-                so you can run `java -jar` without classpath issues.
-            -->
+            <!-- Maven Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+
+            <!-- Maven Shade Plugin for creating a runnable JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -83,7 +93,7 @@
                 <configuration>
                     <createDependencyReducedPom>true</createDependencyReducedPom>
                     <transformers>
-                        <!-- This transformer sets the Main-Class in the manifest -->
+                        <!-- Specify Main-Class in the manifest -->
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                             <mainClass>uniba.system_package.Main</mainClass>
                         </transformer>
@@ -98,25 +108,6 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <!--
-            COMMENTED OUT: maven-jar-plugin
-            because the shade plugin already creates a runnable jar
-            -->
-            <!--
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.2.2</version>
-                <configuration>
-                    <archive>
-                        <manifest>
-                            <mainClass>uniba.system_package.Main</mainClass>
-                        </manifest>
-                    </archive>
-                </configuration>
-            </plugin>
-            -->
         </plugins>
     </build>
 </project>

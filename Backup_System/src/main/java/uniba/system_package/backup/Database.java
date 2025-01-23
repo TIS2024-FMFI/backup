@@ -1,23 +1,23 @@
 package uniba.system_package.backup;
 
+import org.slf4j.Logger;
 import uniba.system_package.scripts.ScriptExecutor;
 import uniba.system_package.storage.StorageManager;
 import uniba.system_package.utils.LogManager;
-import org.slf4j.Logger;
 
 import java.util.List;
 
 public class Database implements BackupTarget {
     private static final Logger logger = LogManager.getLogger(Database.class);
 
-    private String name;
-    private String type; // e.g., MySQL
-    private String host;
-    private String user;
-    private String password;
-    private String preBackupScript; // Path to pre-backup script
-    private String postBackupScript; // Path to post-backup script
-    private StorageManager storageManager;
+    private final String name;
+    private final String type; // e.g., MySQL
+    private final String host;
+    private final String user;
+    private final String password;
+    private final String preBackupScript; // Path to pre-backup script
+    private final String postBackupScript; // Path to post-backup script
+    private final StorageManager storageManager;
 
     public Database(String name, String type, String host, String user, String password,
                     String preBackupScript, String postBackupScript) {
@@ -35,9 +35,24 @@ public class Database implements BackupTarget {
         return name;
     }
 
+    private boolean enabled = true;
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
     @Override
     public boolean performBackup() {
+
+        if (!enabled) {
+            logger.info("Backup skipped for database '{}' because it is disabled.", name);
+            return false;
+        }
+
         logger.info("Starting database backup for: {}", name);
+
 
         ScriptExecutor scriptExecutor = new ScriptExecutor();
 

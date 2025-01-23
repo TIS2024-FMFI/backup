@@ -1,11 +1,11 @@
-package main.java.uniba.system_package.backup;
+package uniba.system_package.backup;
 
 import java.util.Map;
 
 public class SystemStatus {
-    private boolean schedulerActive;
-    private Map<String, String> lastBackupTimes;
-    private Map<String, String> nextBackupTimes;
+    private final boolean schedulerActive;
+    private final Map<String, String> lastBackupTimes;
+    private final Map<String, String> nextBackupTimes;
 
     public SystemStatus(boolean schedulerActive, Map<String, String> lastBackupTimes, Map<String, String> nextBackupTimes) {
         this.schedulerActive = schedulerActive;
