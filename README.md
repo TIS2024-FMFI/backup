@@ -81,7 +81,7 @@ A backup management tool that automates and manages backups for servers and data
       ```
 
 3. **Scheduling**
-    - If you want automated backups, ensure your cron expressions are set properly in `config.yaml`. The scheduler will start automatically when the application runs.
+    - If you want automated backups, define your backup schedule in config.yaml. The system does not use system cron but instead uses Quartz, an internal scheduler. When you start the application, Quartz reads config.yaml and sets up all scheduled backups. The application must remain running for scheduled backups to execute.
 
 ---
 
@@ -121,7 +121,7 @@ This section explains how the system uses your `config.yaml` file and what is ex
 4. **Monitor Logs & Emails**: Check the console or log files for backup outcomes, or watch your inbox if email notifications are configured.
 
 ### 6.3 What the System Handles Automatically
-1. **Scheduled Backups**: Once the application is running, Quartz handles recurring cron jobs for full and incremental backups based on the schedule in `config.yaml`.  
+1. **Scheduled Backups**: The system does not use system cron. Instead, it uses Quartz, which runs inside the application to handle scheduled backups based on the config.yaml file. For scheduled backups to run, the application must be running.
 2. **Pre-/Post-Scripts**: Automatically runs any scripts specified for a server or database before and after each backup.  
 3. **Retention Policies**: After each backup, the system checks and deletes older backups exceeding the keep limits.  
 4. **Remote Upload**: If `RemoteStorage` is configured, the system uploads the newly created backup archives to the specified SFTP path.  
